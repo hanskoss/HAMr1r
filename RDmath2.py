@@ -17,6 +17,55 @@ from scipy.linalg import expm
 
 #from hkimports2 import expm
 
+
+def Laguerre(omegaA,R1A,R2A,omegaB,R1B,R2B,omega1,k1,km1,exptype='R1r'):
+    """2-site Laguerre approcimation, can obtain Rex or R1r"""
+    
+    kex = k1 + km1
+    pA = 1.0
+    pB = 0.0
+    if kex > 1e-6: 
+        pA = km1/kex
+        pB = 1.0 - pA
+    
+    R1 = pA*R1A + pB*R1B
+    R2 = pA*R2A + pB*R2B
+    
+    wA = np.sqrt(omegaA**2 + omega1**2)
+    wB = np.sqrt(omegaB**2 + omega1**2)
+    
+    ombar = pA*omegaA + pB*omegaB
+    we = np.sqrt(ombar**2 + omega1**2)
+    sinthet = omega1/we
+    costhet = ombar/we
+    
+    R1r = sinthet**2*R2 + costhet**2*R1
+    
+    Rexnum = pA*pB*sinthet**2*(omegaB-omegaA)**2
+    
+    temp1 = 1+2*kex**2*(pA*wA**2 + pB*wB**2)/(wA**2*wB**2 + we**2*kex**2)
+    
+    Rex = Rexnum*kex/(wA**2*wB**2/we**2 + kex**2 - Rexnum*temp1)
+    if exptype == 'R1r':
+        return Rex + R1r
+    else:
+        return Rex/sinthet**2
+    
+"""converting Rex to R1r and vice versa, works for n-site"""
+
+def Rex_n(r1r,sinthet,costhet,pN,R1N,R2N):
+    R2sum=np.sum([pN[j]*R2N[j] for j in np.arange(len(pN))])
+    R1sum=np.sum([pN[j]*R1N[j] for j in np.arange(len(pN))])
+    R1r0 = sinthet**2*R2sum + costhet**2*R1sum
+    return (r1r-R1r0)/sinthet**2
+
+def R1r_n(rex,sinthet,costhet,pN,R1N,R2N):
+    R2sum=np.sum([pN[j]*R2N[j] for j in np.arange(len(pN))])
+    R1sum=np.sum([pN[j]*R1N[j] for j in np.arange(len(pN))])
+    R1r0 = sinthet**2*R2sum + costhet**2*R1sum
+    return rex*(sinthet**2)+R1r0
+
+
 smp.init_printing(pretty_print=True,num_columns=150)
 def anyisnotsymbol(listx,eq0):
     """This tests whether any element in a given list (listx)
@@ -34,6 +83,8 @@ def anyisnotsymbol(listx,eq0):
 def anyissymbol(listx):
     """This tests whether any element in a given list (listx) is a symbol
     """
+  # print(listx)
+  #  print(sum([((x>0)!=1 and (x>0)!=0) for x in listx])>0), 'symbtest'
     return sum([((x>0)!=1 and (x>0)!=0) for x in listx])>0
 
 def kv(kvtype,parlist):
@@ -44,6 +95,7 @@ def kv(kvtype,parlist):
             anyissymbol([k14,k24,k34]))) else ([pcx,0] if ((anyisnotsymbol(\
                        [k13,k23],3) or anyissymbol([k13,k23]))) else [0,0])
     pa=1-pb-pc-pd
+#    print(anyissymbol([pd]), pd)
     if anyissymbol([pd]) or pd > 0:
         expressionlist=(pb*k12/(1-pc-pd),pa*k12/(1-pc-pd),pc*k13/(1-pb-pd),\
                         pa*k13/(1-pc-pd),pc*k23/(pb+pc),pb*k23/(pb+pc),pd*k14/\
@@ -86,7 +138,6 @@ def approxdefs(**kwargs):
             prm[x]=smp.Symbol(x)
         else:
             prm[x]=0
-    
     #We prefer variables (corresponding to values or symbols)
     #over bulky dictionary entries, which is why all dictionary entries are
     #assigned to corresponding values:
@@ -96,6 +147,7 @@ def approxdefs(**kwargs):
         ['dwd'];calctype=prm['calctype'];exporder=prm['exporder'];mode=prm\
         ['mode'];pade=prm['pade'];sc=prm['sc'];nDV=prm['nDV'];dwa=prm['dwa'];\
         w1=prm['w1'];deltao=prm['deltao']
+ #   print(dwa,'dwahere',calctype)
     #If verb is set to 'ose', then the calculation type is printed.
     if verb == 'ose':
         print('calc '+calctype+'... ')
@@ -254,6 +306,8 @@ def approxdefs(**kwargs):
         for x in ktest:
             j=0
             for y in x:
+        #       print(y)
+      #         print(ident)
                 z[i:i+3,j:j+3]=y*ident
                 j+=3
             i+=3
@@ -263,31 +317,60 @@ def approxdefs(**kwargs):
             return smp.Matrix(z)
     
     elif calctype == 'r1rLKmat2':
+ #       print(approxdefs(calctype='r1rBigK2',mode=mode,k12=k12,k13=k13,k14=k14\
+#            ,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,sc=sc),'bigk')
+  #      print(approxdefs(\
+     #   calctype='r1rBigL2',mode=mode,sc=sc,k12=k12,k13=k13,k14=k14,k24=\
+     #   k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,dwa=-(deltao-pb*dwb-pc*dwc-\
+     #   pd*dwd),dwb=dwb-(deltao-pb*dwb-pc*dwc-pd*dwd),dwc=dwc-(deltao-\
+     #   pb*dwb-pc*dwc-pd*dwd),dwd=dwd-(deltao-pb*dwb-pc*dwc-pd*dwd),w1=w1),'bigl')
+#        return approxdefs(calctype='r1rBigK2',mode=mode,k12=k12,k13=k13,k14=k14\
+#            ,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,sc=sc)+approxdefs(\
+#            calctype='r1rBigL2',mode=mode,sc=sc,k12=k12,k13=k13,k14=k14,k24=\
+#            k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,dwa=-(deltao-pb*dwb-pc*dwc-\
+#            pd*dwd),dwb=dwb-(deltao-pb*dwb-pc*dwc-pd*dwd),dwc=dwc-(deltao-\
+#            pb*dwb-pc*dwc-pd*dwd),dwd=dwd-(deltao-pb*dwb-pc*dwc-pd*dwd),w1=w1)
         return approxdefs(calctype='r1rBigK2',mode=mode,k12=k12,k13=k13,k14=k14\
             ,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,sc=sc)+approxdefs(\
             calctype='r1rBigL2',mode=mode,sc=sc,k12=k12,k13=k13,k14=k14,k24=\
-            k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,dwa=-(deltao-pb*dwb-pc*dwc-\
-            pd*dwd),dwb=dwb-(deltao-pb*dwb-pc*dwc-pd*dwd),dwc=dwc-(deltao-\
-            pb*dwb-pc*dwc-pd*dwd),dwd=dwd-(deltao-pb*dwb-pc*dwc-pd*dwd),w1=w1)
+            k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,dwa=-deltao,dwb=dwb-deltao,dwc=dwc-deltao,dwd=dwd-deltao,w1=w1)
+
+                                                                   
     elif calctype == 'sinsqth2':
         if sc < 4:
             return (w1**2/(w1**2+((1-pb-pc-pd)*dwa+pb*dwb+pc*dwc+pd*dwd)**2))
         elif sc < 7:
             return (w1**2/(w1**2+((1-pb-pc)*dwa+pb*dwb+pc*dwc)**2))
         else:
+  #          print(dwa,dwb,'dwadwb')
             return (w1**2/(w1**2+((1-pb)*dwa+pb*dwb)**2))
     elif calctype == 'r1rex':
+# There were some minor errors in here. This is commented out for the time being. Remove in later versions.        
+        #print(deltao,pb,dwb,-(deltao-pb*dwb-pc*dwc-pd*dwd),'r1rconv')
+#        LKM=approxdefs(calctype='r1rLKmat2',mode=mode,k12=k12,k13=k13,\
+#           k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
+#           pd=pd,deltao=deltao,w1=w1,dwa=-(deltao-pb*dwb-pc*dwc-\
+#            pd*dwd),dwb=dwb-(deltao-pb*dwb-pc*dwc-pd*dwd),dwc=dwc-(deltao-\
+#            pb*dwb-pc*dwc-pd*dwd),dwd=dwd-(deltao-pb*dwb-pc*dwc-pd*dwd),sc=sc)
+#        LKM=approxdefs(calctype='r1rLKmat2',mode=mode,k12=k12,k13=k13,\
+#           k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
+#           pd=pd,deltao=deltao,w1=w1,dwa=0-pb*dwb-pc*dwc-pd*dwd,dwb=dwb-pb*dwb-pc*dwc-pd*dwd,dwc=dwc-pb*dwb-pc*dwc-pd*dwd,dwd=dwd-pb*dwb-pc*dwc-pd*dwd,sc=sc)
+
         LKM=approxdefs(calctype='r1rLKmat2',mode=mode,k12=k12,k13=k13,\
-           k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
-           pd=pd,deltao=deltao,w1=w1,dwa=-(deltao-pb*dwb-pc*dwc-\
-            pd*dwd),dwb=dwb-(deltao-pb*dwb-pc*dwc-pd*dwd),dwc=dwc-(deltao-\
-            pb*dwb-pc*dwc-pd*dwd),dwd=dwd-(deltao-pb*dwb-pc*dwc-pd*dwd),sc=sc)
+            k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
+            pd=pd,deltao=deltao,w1=w1,dwa=0,dwb=dwb,dwc=dwc-pb*dwb-pc*dwc-pd*dwd,dwd=dwd-pb*dwb-pc*dwc-pd*dwd,sc=sc)
+
+      #  print(LKM, 'LKM')
+#        sinsqt=approxdefs(calctype='sinsqth2',mode=mode,k12=k12,k13=k13,\
+#           k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
+#           pd=pd,deltao=deltao,w1=w1,dwa=-(deltao-pb*dwb-pc*dwc-\
+#            pd*dwd),dwb=dwb-(deltao-pb*dwb-pc*dwc-pd*dwd),dwc=dwc-(deltao-\
+#            pb*dwb-pc*dwc-pd*dwd),dwd=dwd-(deltao-pb*dwb-pc*dwc-pd*dwd),sc=sc)
         sinsqt=approxdefs(calctype='sinsqth2',mode=mode,k12=k12,k13=k13,\
            k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
-           pd=pd,deltao=deltao,w1=w1,dwa=-(deltao-pb*dwb-pc*dwc-\
-            pd*dwd),dwb=dwb-(deltao-pb*dwb-pc*dwc-pd*dwd),dwc=dwc-(deltao-\
-            pb*dwb-pc*dwc-pd*dwd),dwd=dwd-(deltao-pb*dwb-pc*dwc-pd*dwd),sc=sc)
+           pd=pd,deltao=deltao,w1=w1,dwa=-(deltao),dwb=dwb-(deltao),dwc=dwc-(deltao),dwd=dwd-(deltao),sc=sc)
         if mode == 2:
+   #         print(np.real(1/np.max(-1/np.linalg.eigvals(LKM))).item(),'xxxinloop')
             return np.real(1/np.max(-1/np.linalg.eigvals(LKM))).item()/sinsqt
   
    
@@ -395,6 +478,7 @@ def cestfunction(omegarflist,deltaAB,deltaAC,k12,k13,k23,pb,pc,w1x,R1,R2,B0,exac
     The position of the CEST dip, which is important and refers to "position 0" depends
     on whether the dominant site is in slow or fast exchange with any of the minor site(s).
     This position is calculated initially.
+    //// THIS MIGHT NOT BE THE MOST UPDATED VERSION. recall issues in collaborative project Feb 2022 with large minor site pop.
     
     """
 
@@ -444,7 +528,10 @@ def cestfunction(omegarflist,deltaAB,deltaAC,k12,k13,k23,pb,pc,w1x,R1,R2,B0,exac
 
     return cest[0]/(cos2t*np.exp(-R1*trad))
     
-def r1req(*args):
+def rexeq(*args):
+    """This does return Rex, /// function name recently revised
+    Assumes that the exact solution for Rex is the greatest non-negative eigenvalue.
+    """
     [t,dwb,pb,k12,mode,w1,pade,evap,dwc,pc,k13,k23,dwd,pd,k14,k24,k34]=\
         args
     schemecond=[sum([k14 != 0,k34 == 0,k24 != 0]),sum([k14 == 0, \
@@ -453,6 +540,8 @@ def r1req(*args):
                 == 0, k13 !=0]),sum([k23 != 0, k13 ==0]),sum([k23 \
                 == 0, k13 ==0]),sum([k23 != 0, k13 !=0])]
     sc=[ x for x,m in enumerate(schemecond) if m == 0][0]
+    #print(' ')
+    #print('donow',t,dwb)
     return approxdefs(calctype='r1rex',mode=2,k12=k12,k13=k13,\
            k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
            pd=pd,deltao=t,w1=w1,dwa=0,dwb=dwb,dwc=dwc,dwd=dwd,sc=sc)
