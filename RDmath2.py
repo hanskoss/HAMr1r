@@ -63,6 +63,7 @@ def R1r_n(rex,sinthet,costhet,pN,R1N,R2N):
     R2sum=np.sum([pN[j]*R2N[j] for j in np.arange(len(pN))])
     R1sum=np.sum([pN[j]*R1N[j] for j in np.arange(len(pN))])
     R1r0 = sinthet**2*R2sum + costhet**2*R1sum
+    #print(R1r0,'R1r0', sinthet**2,R2sum, costhet**2,R1sum)
     return rex*(sinthet**2)+R1r0
 
 
@@ -130,12 +131,15 @@ def approxdefs(**kwargs):
     sparlist=['pa','pb','pc','pd','t','tt','k12','k13','k14','k23','k24','k34'\
               ,'dwa','dwb','dwc','dwd','w1','deltao']
     oparlist=['calctype','exporder','mode','pade','sc','nDV','nhmatnewsc']
+    lparlist=['r1','r2']
     prm={}
-    for x in sparlist+oparlist:
+    for x in sparlist+oparlist+lparlist:
         if x in kwargs:
             prm[x]=kwargs[x]
         elif x in sparlist:
             prm[x]=smp.Symbol(x)
+        elif x in lparlist:
+            prm[x]=[0,0,0,0]
         else:
             prm[x]=0
     #We prefer variables (corresponding to values or symbols)
@@ -147,6 +151,9 @@ def approxdefs(**kwargs):
         ['dwd'];calctype=prm['calctype'];exporder=prm['exporder'];mode=prm\
         ['mode'];pade=prm['pade'];sc=prm['sc'];nDV=prm['nDV'];dwa=prm['dwa'];\
         w1=prm['w1'];deltao=prm['deltao']
+    r1=prm['r1']
+    r2=prm['r2']
+    #print(r1,'r1','!!!!!!',calctype)
  #   print(dwa,'dwahere',calctype)
     #If verb is set to 'ose', then the calculation type is printed.
     if verb == 'ose':
@@ -237,7 +244,8 @@ def approxdefs(**kwargs):
                         np.dot(xmt,xmt)))))/(4*t)
 
     elif calctype == 'r1rBigL2':
-        Lmat=[[[0,-x,0],[x,0,-w1],[0,w1,0]] for x in [dwa,dwb,dwc,dwd]]
+        dwlist=[dwa,dwb,dwc,dwd]
+        Lmat=[[[-r2[xn],-dwlist[xn],0],[dwlist[xn],-r2[xn],-w1],[0,w1,-r1[xn]]] for xn,x in enumerate(r2)]
         idm=np.matrix(np.identity(3))
         if mode ==2:
             
@@ -333,7 +341,7 @@ def approxdefs(**kwargs):
         return approxdefs(calctype='r1rBigK2',mode=mode,k12=k12,k13=k13,k14=k14\
             ,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,sc=sc)+approxdefs(\
             calctype='r1rBigL2',mode=mode,sc=sc,k12=k12,k13=k13,k14=k14,k24=\
-            k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,dwa=-deltao,dwb=dwb-deltao,dwc=dwc-deltao,dwd=dwd-deltao,w1=w1)
+            k24,k23=k23,k34=k34,pb=pb,pc=pc,pd=pd,dwa=-deltao,dwb=dwb-deltao,dwc=dwc-deltao,dwd=dwd-deltao,w1=w1,r1=r1,r2=r2)
 
                                                                    
     elif calctype == 'sinsqth2':
@@ -358,9 +366,9 @@ def approxdefs(**kwargs):
 
         LKM=approxdefs(calctype='r1rLKmat2',mode=mode,k12=k12,k13=k13,\
             k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
-            pd=pd,deltao=deltao,w1=w1,dwa=0,dwb=dwb,dwc=dwc-pb*dwb-pc*dwc-pd*dwd,dwd=dwd-pb*dwb-pc*dwc-pd*dwd,sc=sc)
+            pd=pd,deltao=deltao,w1=w1,dwa=0,dwb=dwb,dwc=dwc,dwd=dwd,sc=sc,r1=r1,r2=r2)
 
-      #  print(LKM, 'LKM')
+   #     print(LKM, 'LKM')
 #        sinsqt=approxdefs(calctype='sinsqth2',mode=mode,k12=k12,k13=k13,\
 #           k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
 #           pd=pd,deltao=deltao,w1=w1,dwa=-(deltao-pb*dwb-pc*dwc-\
@@ -372,7 +380,8 @@ def approxdefs(**kwargs):
         if mode == 2:
    #         print(np.real(1/np.max(-1/np.linalg.eigvals(LKM))).item(),'xxxinloop')
             return np.real(1/np.max(-1/np.linalg.eigvals(LKM))).item()/sinsqt
-  
+
+    
    
 def nEVapprox(*args,**kwargs):
     """Main function to generate exact solutions and approximations, except
@@ -528,12 +537,15 @@ def cestfunction(omegarflist,deltaAB,deltaAC,k12,k13,k23,pb,pc,w1x,R1,R2,B0,exac
 
     return cest[0]/(cos2t*np.exp(-R1*trad))
     
-def rexeq(*args):
+def rexeq(*args,**kwargs):
     """This does return Rex, /// function name recently revised
     Assumes that the exact solution for Rex is the greatest non-negative eigenvalue.
     """
     [t,dwb,pb,k12,mode,w1,pade,evap,dwc,pc,k13,k23,dwd,pd,k14,k24,k34]=\
         args
+    if 'r1' in kwargs:
+        r1=kwargs['r1']
+        r2=kwargs['r2']
     schemecond=[sum([k14 != 0,k34 == 0,k24 != 0]),sum([k14 == 0, \
                 k24 != 0, k34 != 0]),sum([k14 == 0, k34 == 0, k24 \
                 != 0]),sum([k34 == 0,k24 == 0, k14 != 0]),sum([k23 \
@@ -542,9 +554,14 @@ def rexeq(*args):
     sc=[ x for x,m in enumerate(schemecond) if m == 0][0]
     #print(' ')
     #print('donow',t,dwb)
-    return approxdefs(calctype='r1rex',mode=2,k12=k12,k13=k13,\
-           k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
-           pd=pd,deltao=t,w1=w1,dwa=0,dwb=dwb,dwc=dwc,dwd=dwd,sc=sc)
+    if 'r1' in kwargs:    
+        return approxdefs(calctype='r1rex',mode=2,k12=k12,k13=k13,\
+               k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
+               pd=pd,deltao=t,w1=w1,dwa=0,dwb=dwb,dwc=dwc,dwd=dwd,sc=sc,r1=r1,r2=r2)
+    else:
+        return approxdefs(calctype='r1rex',mode=2,k12=k12,k13=k13,\
+               k14=k14,k24=k24,k23=k23,k34=k34,pb=pb,pc=pc,\
+               pd=pd,deltao=t,w1=w1,dwa=0,dwb=dwb,dwc=dwc,dwd=dwd,sc=sc)
     
     #r1req[t,dwb,pb,k12,mode,w1,pade,evap,dwc,pc,k13,k23,dwd,pd,k14,k24,k34]
 
